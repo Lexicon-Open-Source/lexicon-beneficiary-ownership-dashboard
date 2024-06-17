@@ -39,7 +39,41 @@ class DraftCaseResource extends Resource
     {
         return $form
             ->schema([
-                //
+                TextInput::make('subject')->required()->maxLength(255),
+                Select::make('subject_type')->options(DraftCase::SUBJECT_TYPE)->required()->native(false),
+                TextInput::make('person_in_charge')->maxLength(255),
+                TextInput::make('benificiary_ownership')->maxLength(255),
+                DatePicker::make('case_date')->native(false),
+                TextInput::make('decision_number')->required()->maxLength(255),
+                TextInput::make('source')->required()->maxLength(255),
+                TextInput::make('link')->required(),
+                Select::make('nation')->options([
+                    'Global' => 'Global',
+                    'Indonesia' => 'Indonesia',
+                    'Malaysia' => 'Malaysia',
+                    'Singapore' => 'Singapore',
+                ])->required()->native(false),
+                DatePicker::make('punishment_start')->native(false),
+                DatePicker::make('punishment_end')->native(false),
+                Select::make('case_type')->options(DraftCase::CASE_TYPE)->required()->native(false),
+                TextInput::make('year')->maxLength(4)->required(),
+
+                MarkdownEditor::make('summary_formatted')
+                    ->toolbarButtons([
+                        'blockquote',
+                        'bold',
+                        'bulletList',
+                        'codeBlock',
+                        'heading',
+                        'italic',
+                        'link',
+                        'orderedList',
+                        'undo',
+                        'redo',
+                        'strike',
+                        'table',
+
+                    ])->label('Summary')->required()->columnSpanFull(),
             ]);
     }
 
