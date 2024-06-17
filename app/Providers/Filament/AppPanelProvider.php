@@ -40,10 +40,11 @@ class AppPanelProvider extends PanelProvider
     {
         $panel
             ->default()
-            ->id('app')
-            ->path('app')
+            // ->brandName('Lexicon Beneficiary Ownership')
+            ->id('dashboard')
+            ->path('dashboard')
             ->login()
-            ->registration()
+            // ->registration()
             ->passwordReset()
             ->emailVerification()
             ->viteTheme('resources/css/app.css')
