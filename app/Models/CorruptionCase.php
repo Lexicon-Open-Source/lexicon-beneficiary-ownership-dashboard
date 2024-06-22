@@ -16,6 +16,9 @@ class CorruptionCase extends Model
 
     protected $guarded = [];
 
+    public $timestamps = true;
+
+
     protected $casts = ['id' => 'string', 'status' => CaseStatus::class, 'subject_type' => CaseSubjectType::class, 'case_type' => CaseType::class, 'created_at' => 'datetime', 'updated_at' => 'datetime', 'case_date' => 'datetime', 'punishment_start' => 'datetime', 'punishment_end' => 'datetime'];
 
     protected $keyType = 'string';

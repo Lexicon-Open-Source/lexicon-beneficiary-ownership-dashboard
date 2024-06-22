@@ -2,13 +2,15 @@
 
 namespace App\Models\Enums;
 
-enum CaseType: int
+use Filament\Support\Contracts\HasLabel;
+
+enum CaseType: int implements HasLabel
 {
     case CASE_TYPE_VERDICT = 1;
     case CASE_TYPE_BLACKLIST = 2;
     case CASE_TYPE_SANCTION = 3;
 
-    public function label(): string
+    public function getLabel(): ?string
     {
         return match ($this) {
             self::CASE_TYPE_VERDICT => 'Verdict',

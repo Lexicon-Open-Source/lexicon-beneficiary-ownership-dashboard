@@ -2,13 +2,15 @@
 
 namespace App\Models\Enums;
 
-enum CaseSubjectType: int
+use Filament\Support\Contracts\HasLabel;
+
+enum CaseSubjectType: int implements HasLabel
 {
     case SUBJECT_TYPE_INDIVIDUAL = 1;
     case SUBJECT_TYPE_COMPANY = 2;
     case SUBJECT_TYPE_ORGANIZATION = 3;
 
-    public function label(): string
+    public function getlabel(): ?string
     {
         return match ($this) {
             self::SUBJECT_TYPE_INDIVIDUAL => 'Individual',

@@ -43,7 +43,7 @@ class DraftCaseResource extends Resource
                 Select::make('subject_type')->options(DraftCase::SUBJECT_TYPE)->required()->native(false),
                 TextInput::make('person_in_charge')->maxLength(255),
                 TextInput::make('benificiary_ownership')->maxLength(255),
-                DatePicker::make('case_date')->native(false),
+                DatePicker::make('case_date')->native(false)->required(),
                 TextInput::make('decision_number')->required()->maxLength(255),
                 TextInput::make('source')->required()->maxLength(255),
                 TextInput::make('link')->required(),
@@ -83,11 +83,11 @@ class DraftCaseResource extends Resource
             ->columns([
                 TextColumn::make('subject')->searchable(),
                 TextColumn::make('subject_type')
-                    ->formatStateUsing(fn ($state) => $state->label())
+
                     ->badge(),
                 TextColumn::make('nation'),
                 TextColumn::make('source'),
-                TextColumn::make('type'),
+                TextColumn::make('case_type'),
             ])
             ->filters([
                 SelectFilter::make('subject_type')->options([
@@ -107,9 +107,8 @@ class DraftCaseResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-
-                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -126,10 +125,10 @@ class DraftCaseResource extends Resource
                     Fieldset::make('')
                         ->schema([
                             Infolists\Components\TextEntry::make('subject_type')
-                                ->formatStateUsing(fn ($state) => $state->label())
+
                                 ->badge()
                                 ->color('success'),
-                            Infolists\Components\TextEntry::make('case_type')->formatStateUsing(fn ($state) => $state->label())
+                            Infolists\Components\TextEntry::make('case_type')
                                 ->badge()
                                 ->color('info'),
 

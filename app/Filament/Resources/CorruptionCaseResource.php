@@ -83,11 +83,18 @@ class CorruptionCaseResource extends Resource
             ->columns([
                 TextColumn::make('subject')->searchable(),
                 TextColumn::make('subject_type')
-                    ->formatStateUsing(fn ($state) => $state->label())
+
                     ->badge(),
                 TextColumn::make('nation'),
                 TextColumn::make('source'),
-                TextColumn::make('type'),
+                TextColumn::make('status')
+
+                    ->badge()
+                    ->color(fn ($record) => match ($record->status) {
+                        CaseStatus::CASE_STATUS_VERIFIED => 'success',
+                        CaseStatus::CASE_STATUS_DRAFT => 'warning',
+                        CaseStatus::CASE_STATUS_DELETED => 'danger',
+                    }),
 
             ])
             ->filters([
@@ -126,13 +133,12 @@ class CorruptionCaseResource extends Resource
                     Fieldset::make('')
                         ->schema([
                             Infolists\Components\TextEntry::make('subject_type')
-                                ->formatStateUsing(fn ($state) => $state->label())
                                 ->badge()
                                 ->color('success'),
-                            Infolists\Components\TextEntry::make('case_type')->formatStateUsing(fn ($state) => $state->label())
+                            Infolists\Components\TextEntry::make('case_type')
                                 ->badge()
                                 ->color('info'),
-                            Infolists\Components\TextEntry::make('status')->formatStateUsing(fn ($state) => $state->label())
+                            Infolists\Components\TextEntry::make('status')
                                 ->badge()
                                 ->color('danger'),
                         ])
