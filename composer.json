@@ -14,6 +14,7 @@
         "laravel/jetstream": "^4.2|^5.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "league/commonmark": "^2.4",
         "livewire/livewire": "^3.0",
         "stephenjude/filament-jetstream": "^0.0.10"
     },
