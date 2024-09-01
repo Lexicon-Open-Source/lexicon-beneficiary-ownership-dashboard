@@ -18,14 +18,15 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 
 use App\Models\Enums\CaseSubjectType;
 use App\Models\Enums\CaseType;
 use Filament\Infolists\Components\Fieldset;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\Split;
-
-
+use Filament\Tables\Actions\BulkAction;
+use Illuminate\Database\Eloquent\Collection;
 
 class DraftCaseResource extends Resource
 {
@@ -87,7 +88,13 @@ class DraftCaseResource extends Resource
                     ->badge(),
                 TextColumn::make('nation'),
                 TextColumn::make('source'),
-                TextColumn::make('case_type'),
+                TextColumn::make('type')
+                    ->badge()
+                    ->color(fn($record) => match ($record->type) {
+                        CaseType::CASE_TYPE_VERDICT => 'success',
+                        CaseType::CASE_TYPE_BLACKLIST => 'warning',
+                        CaseType::CASE_TYPE_SANCTION => 'danger',
+                    }),
             ])
             ->filters([
                 SelectFilter::make('subject_type')->options([
@@ -104,6 +111,11 @@ class DraftCaseResource extends Resource
                     'Malaysia' => 'Malaysia',
                     'Singapore' => 'Singapore',
                 ]),
+                SelectFilter::make('type')->options([
+                    CaseType::CASE_TYPE_VERDICT->value => 'Verdict',
+                    CaseType::CASE_TYPE_BLACKLIST->value => 'Blacklist',
+                    CaseType::CASE_TYPE_SANCTION->value => 'Sanction',
+                ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -112,6 +124,29 @@ class DraftCaseResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    BulkAction::make('bulkApprove')
+                        ->requiresConfirmation()
+                        ->icon('heroicon-o-check-badge')
+                        ->color('success')
+                        ->action(
+                            function (Collection $draft) {
+                                $draft->each(
+                                    function (DraftCase $draft) {
+                                        $draft->approve();
+                                        $draft->delete();
+                                    }
+                                );
+                                Notification::make()
+                                    ->success()
+                                    ->title('Draft Approved')
+                                    ->body('The Cases are approved, and drafts are deleted automatically')->send();
+                            }
+                        )
+                        ->deselectRecordsAfterCompletion()
+
+
+                        ->successRedirectUrl(DraftCaseResource::getUrl('index')),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
@@ -128,7 +163,7 @@ class DraftCaseResource extends Resource
 
                                 ->badge()
                                 ->color('success'),
-                            Infolists\Components\TextEntry::make('case_type')
+                            Infolists\Components\TextEntry::make('type')
                                 ->badge()
                                 ->color('info'),
 
@@ -158,7 +193,10 @@ class DraftCaseResource extends Resource
                         Infolists\Components\TextEntry::make('year'),
 
 
-                        Infolists\Components\TextEntry::make('link')->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('link')
+                            ->url(fn(DraftCase $draft): string => url($draft->link))
+                            ->openUrlInNewTab()
+                            ->columnSpanFull(),
 
 
                     ]),

@@ -14,7 +14,7 @@ class DraftCase extends Model
 {
     use HasFactory, HasUlids;
 
-    protected $casts =  ['id' => 'string', 'subject_type' => CaseSubjectType::class, 'case_type' => CaseType::class, 'created_at' => 'datetime', 'updated_at' => 'datetime', 'case_date' => 'datetime', 'punishment_start' => 'datetime', 'punishment_end' => 'datetime'];
+    protected $casts =  ['id' => 'string', 'subject_type' => CaseSubjectType::class, 'type' => CaseType::class, 'created_at' => 'datetime', 'updated_at' => 'datetime', 'case_date' => 'datetime', 'punishment_start' => 'datetime', 'punishment_end' => 'datetime'];
     protected $keyType = 'string';
 
     protected $guarded = [];
@@ -41,6 +41,8 @@ class DraftCase extends Model
         unset($array['id']);
         unset($array['created_at']);
         unset($array['updated_at']);
+        $array['case_type'] = $array['type'];
+        unset($array['type']);
         $array['id'] = Ulid::generate();
         $array['status'] = CaseStatus::CASE_STATUS_VERIFIED->value;
 
