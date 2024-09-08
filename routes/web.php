@@ -26,3 +26,8 @@ Route::redirect('/', '/dashboard')->name('dashboard');
 Route::get('/team-invitations/{invitation}', [TeamInvitationController::class, 'accept'])
     ->middleware(['signed', 'verified', 'auth', AuthenticateSession::class])
     ->name('team-invitations.accept');
+
+Livewire::setUpdateRoute(function ($handle) {
+    return Route::post('/admin/livewire/update', $handle);
+
+});
