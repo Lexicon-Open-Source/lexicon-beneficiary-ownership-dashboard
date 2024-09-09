@@ -56,7 +56,7 @@ class DraftCaseResource extends Resource
                 ])->required()->native(false),
                 DatePicker::make('punishment_start')->native(false),
                 DatePicker::make('punishment_end')->native(false),
-                Select::make('case_type')->options(DraftCase::CASE_TYPE)->required()->native(false),
+                Select::make('type')->options(DraftCase::CASE_TYPE)->required()->native(false),
                 TextInput::make('year')->maxLength(4)->required(),
 
                 MarkdownEditor::make('summary_formatted')
