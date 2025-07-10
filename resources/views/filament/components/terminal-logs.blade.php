@@ -20,10 +20,10 @@
     <div class="overflow-y-auto p-4 space-y-1 h-96 font-mono text-sm" id="terminal-logs">
         @if(isset($getState()['error']))
             <!-- Display error message -->
-            <div class="flex flex-col border-l-2 border-red-500 pl-3 py-1">
+            <div class="flex flex-col py-1 pl-3 border-l-2 border-red-500">
                 <div class="flex justify-between items-center mb-1 text-xs text-gray-400">
                     <div class="flex items-center space-x-2">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-900 text-red-200">
+                        <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-red-200 bg-red-900 rounded">
                             ERROR
                         </span>
                         <span>{{ now()->format('Y-m-d H:i:s') }}</span>
@@ -37,13 +37,13 @@
             <div class="italic text-gray-500">No logs available</div>
         @else
             @foreach($getState() ?? [] as $log)
-                <div class="flex flex-col border-l-2 @if($log['event_type'] === 'error') border-red-500 @elseif($log['event_type'] === 'warning') border-yellow-500 @else border-green-500 @endif pl-3 py-1">
+                <div class="flex flex-col border-l-2 @if($log['event_type'] === 'error') border-red-500 @elseif($log['event_type'] === 'warn') border-yellow-500 @else border-green-500 @endif pl-3 py-1">
                     <!-- Log Header -->
                     <div class="flex justify-between items-center mb-1 text-xs text-gray-400">
                         <div class="flex items-center space-x-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                 @if($log['event_type'] === 'error') bg-red-900 text-red-200
-                                @elseif($log['event_type'] === 'warning') bg-yellow-900 text-yellow-200
+                                @elseif($log['event_type'] === 'warn') bg-yellow-900 text-yellow-200
                                 @else bg-green-900 text-green-200 @endif">
                                 {{ strtoupper($log['event_type']) }}
                             </span>
@@ -60,13 +60,7 @@
                     <!-- Log Details (if exists and decodable) -->
                     @if(!empty($log['details']))
                         @php
-                            $details = null;
-                            try {
-                                $decoded = base64_decode($log['details']);
-                                $details = json_decode($decoded, true);
-                            } catch (\Exception $e) {
-                                // Skip if not decodable
-                            }
+                            $details = $log['details'];
                         @endphp
 
                         @if($details)
