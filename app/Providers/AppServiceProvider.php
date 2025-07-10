@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\CrawlerService;
 use Illuminate\Support\ServiceProvider;
 use League\CommonMark\CommonMarkConverter;
 
@@ -15,6 +16,8 @@ class AppServiceProvider extends ServiceProvider
     {
         //
         app()->factory(CommonMarkConverter::class);
+
+        $this->app->singleton(CrawlerService::class);
     }
 
     /**
