@@ -2,38 +2,58 @@
 
 namespace App\Models;
 
+use App\Services\WorkManagerService;
 use Sushi\Sushi;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Arr;
 
 class Work extends Model
 {
-  use Sushi;
+    use Sushi;
 
-  protected $schema = [
-    'id' => 'string',
-    'name' => 'string',
-    'status' => 'string',
-    'created_at' => 'datetime',
-    'payload' => 'string',
-    'exception' => 'string',
-  ];
+    public $incrementing = false;
+    protected $keyType = 'string';
 
-  public function getRows()
-  {
-    $baseUrl = config('crawler.base_url');
-    if (! $baseUrl) {
-      return [];
+    protected $schema = [
+        'id' => 'string',
+        'status' => 'string',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
+    ];
+
+    public function getRows()
+    {
+        $response = app(WorkManagerService::class)->listWorks();
+
+        if (!$response->successful()) {
+            return [];
+        }
+
+        $data = $response->json('data', []);
+
+        $works = Arr::map($data, function ($work) {
+            return Arr::only($work, ['id', 'status', 'created_at', 'updated_at', 'started_at', 'finished_at']);
+        });
+
+        return $works;
     }
 
-    $response = Http::get("{$baseUrl}/works", [
-      'limit' => 1000,
-    ]);
-
-    if ($response->failed()) {
-      return [];
+    protected function sushiShouldCache()
+    {
+        return false; // Disable caching to always get fresh data
     }
 
-    return $response->json();
-  }
+    public function cancel()
+    {
+        $response = app(WorkManagerService::class)->cancelWork($this->id);
+
+        if ($response->successful()) {
+            $this->status = 'cancelled';
+            $this->save();
+        }
+
+        return $response;
+    }
 }
