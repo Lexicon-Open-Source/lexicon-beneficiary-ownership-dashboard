@@ -93,7 +93,30 @@ class WorkResource extends Resource
                     ->label('Cancel')
                     ->requiresConfirmation()
                     ->action(function (Work $record) {
-                        $record->cancel();
+                        $response = $record->cancel();
+
+                        if (!$response) {
+                            Notification::make()
+                                ->title('Service Unavailable')
+                                ->body('Cannot connect to the crawler service. Please try again later.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        if ($response->successful()) {
+                            Notification::make()
+                                ->title('Work Cancelled')
+                                ->body('The work has been successfully cancelled.')
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('Failed to cancel the work. Please try again.')
+                                ->danger()
+                                ->send();
+                        }
                     })
                     ->visible(fn(Work $record) => in_array($record->status, ['started'])),
             ])
@@ -101,7 +124,15 @@ class WorkResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->emptyStateHeading('No Works Found')
+            ->emptyStateDescription(function () {
+                if (!Work::isServiceAvailable()) {
+                    return 'The crawler service is currently unavailable. Please check if the service is running and try again.';
+                }
+                return 'No crawler works have been created yet.';
+            })
+            ->emptyStateIcon('heroicon-o-exclamation-triangle');
     }
 
     public static function infolist(Infolist $infolist): Infolist
@@ -132,11 +163,15 @@ class WorkResource extends Resource
                     ])
                     ->columns(2),
 
-                Section::make('Logs')
+                Section::make('Job Logs')
                     ->description(function (Work $record) {
+                        if (!Work::isServiceAvailable()) {
+                            return 'Crawler service is currently unavailable';
+                        }
+
                         try {
                             $response = app(WorkManagerService::class)->getWork($record->id);
-                            if ($response->successful()) {
+                            if ($response && $response->successful()) {
                                 $data = $response->json('data');
                                 $logs = $data['logs'] ?? [];
                                 return 'Total logs: ' . count($logs) . ' | Job ID: ' . $record->id;
@@ -150,16 +185,20 @@ class WorkResource extends Resource
                         ViewEntry::make('logs')
                             ->view('filament.components.terminal-logs')
                             ->state(function (Work $record) {
+                                if (!Work::isServiceAvailable()) {
+                                    return ['error' => 'Crawler service is currently unavailable. Please check if the service is running and try again.'];
+                                }
+
                                 try {
                                     $response = app(WorkManagerService::class)->getWork($record->id);
-                                    if ($response->successful()) {
+                                    if ($response && $response->successful()) {
                                         $data = $response->json('data');
                                         return $data['logs'] ?? [];
                                     }
                                 } catch (\Exception $e) {
                                     Log::error('Failed to load work logs in infolist: ' . $e->getMessage());
                                 }
-                                return [];
+                                return ['error' => 'Failed to load job logs. The crawler service might be unavailable.'];
                             })
                     ])
                     ->collapsed(false)

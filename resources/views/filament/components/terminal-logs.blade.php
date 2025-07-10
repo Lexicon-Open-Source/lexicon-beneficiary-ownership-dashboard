@@ -8,13 +8,32 @@
         </div>
         <div class="font-mono text-sm text-gray-400">Job Logs</div>
         <div class="text-sm text-gray-400">
-            {{ count($getState() ?? []) }} entries
+            @if(isset($getState()['error']))
+                Error
+            @else
+                {{ count($getState() ?? []) }} entries
+            @endif
         </div>
     </div>
 
     <!-- Terminal Content -->
     <div class="overflow-y-auto p-4 space-y-1 h-96 font-mono text-sm" id="terminal-logs">
-        @if(empty($getState()))
+        @if(isset($getState()['error']))
+            <!-- Display error message -->
+            <div class="flex flex-col border-l-2 border-red-500 pl-3 py-1">
+                <div class="flex justify-between items-center mb-1 text-xs text-gray-400">
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-900 text-red-200">
+                            ERROR
+                        </span>
+                        <span>{{ now()->format('Y-m-d H:i:s') }}</span>
+                    </div>
+                </div>
+                <div class="text-red-400 break-words">
+                    {{ $getState()['error'] }}
+                </div>
+            </div>
+        @elseif(empty($getState()))
             <div class="italic text-gray-500">No logs available</div>
         @else
             @foreach($getState() ?? [] as $log)
@@ -72,7 +91,13 @@
     <!-- Terminal Footer -->
     <div class="px-4 py-2 bg-gray-800 border-t border-gray-700">
         <div class="flex justify-between items-center text-xs text-gray-400">
-            <div>Use scroll to navigate through logs</div>
+            <div>
+                @if(isset($getState()['error']))
+                    Service unavailable - Check crawler service status
+                @else
+                    Use scroll to navigate through logs
+                @endif
+            </div>
             <div class="flex items-center space-x-2">
                 <button
                     onclick="document.getElementById('terminal-logs').scrollTop = 0"

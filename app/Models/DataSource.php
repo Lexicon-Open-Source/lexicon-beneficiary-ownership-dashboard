@@ -59,6 +59,6 @@ class DataSource extends Model
 
     protected function sushiShouldCache()
     {
-        return true;
+        return false;
     }
 }

@@ -22,6 +22,8 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 
 class DataSource extends Page implements HasForms, HasTable
 {
@@ -93,16 +95,30 @@ class DataSource extends Page implements HasForms, HasTable
     {
         $data = $this->form->getState();
 
-        $service->createDataSource($data);
+        try {
+            $service->createDataSource($data);
 
-        Notification::make()
-            ->title('Saved successfully')
-            ->success()
-            ->send();
+            Notification::make()
+                ->title('Saved successfully')
+                ->success()
+                ->send();
 
-        $this->form->fill();
+            $this->form->fill();
 
-        return redirect(static::getUrl());
+            return redirect(static::getUrl());
+        } catch (ConnectionException | RequestException $e) {
+            Notification::make()
+                ->title('Service Unavailable')
+                ->body('Cannot connect to the crawler service. Please check if the service is running and try again.')
+                ->danger()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Error')
+                ->body('An unexpected error occurred while creating the data source.')
+                ->danger()
+                ->send();
+        }
     }
 
     protected function getTableColumns(): array
@@ -128,11 +144,49 @@ class DataSource extends Page implements HasForms, HasTable
             EditAction::make()
                 ->form(fn() => $this->getFormSchema())
                 ->action(function (array $data, DataSourceModel $record) {
-                    app(CrawlerService::class)->updateDataSource($record->id, $data);
+                    try {
+                        app(CrawlerService::class)->updateDataSource($record->id, $data);
+
+                        Notification::make()
+                            ->title('Updated successfully')
+                            ->success()
+                            ->send();
+                    } catch (ConnectionException | RequestException $e) {
+                        Notification::make()
+                            ->title('Service Unavailable')
+                            ->body('Cannot connect to the crawler service. Please check if the service is running and try again.')
+                            ->danger()
+                            ->send();
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('Error')
+                            ->body('An unexpected error occurred while updating the data source.')
+                            ->danger()
+                            ->send();
+                    }
                 }),
             DeleteAction::make()
                 ->action(function (DataSourceModel $record) {
-                    app(CrawlerService::class)->deleteDataSource($record->id);
+                    try {
+                        app(CrawlerService::class)->deleteDataSource($record->id);
+
+                        Notification::make()
+                            ->title('Deleted successfully')
+                            ->success()
+                            ->send();
+                    } catch (ConnectionException | RequestException $e) {
+                        Notification::make()
+                            ->title('Service Unavailable')
+                            ->body('Cannot connect to the crawler service. Please check if the service is running and try again.')
+                            ->danger()
+                            ->send();
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('Error')
+                            ->body('An unexpected error occurred while deleting the data source.')
+                            ->danger()
+                            ->send();
+                    }
                 }),
         ];
     }

@@ -19,7 +19,7 @@ class CrawlerService
         $user = config('crawler.user');
         $identity = config('crawler.identity');
 
-        return Http::baseUrl(config('crawler.base_url'))
+        return Http::baseUrl(config('crawler.base_url') . '/v1/')
             ->timeout(config('crawler.timeout'))
             ->acceptJson()
             ->asJson()

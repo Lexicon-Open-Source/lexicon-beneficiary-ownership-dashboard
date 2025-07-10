@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class WorkManagerService
 {
@@ -16,7 +19,7 @@ class WorkManagerService
         $user = config('crawler.user');
         $identity = config('crawler.identity');
 
-        return Http::baseUrl(config('crawler.base_url'))
+        return Http::baseUrl(config('crawler.base_url') . '/v1/')
             ->timeout(config('crawler.timeout'))
             ->acceptJson()
             ->asJson()
@@ -36,7 +39,7 @@ class WorkManagerService
      * @param int|null $limit
      * @param string|null $status
      * @param string|null $search
-     * @return \Illuminate\Http\Client\Response
+     * @return \Illuminate\Http\Client\Response|null
      */
     public function listWorks(?int $page = null, ?int $limit = null, ?string $status = null, ?string $search = null)
     {
@@ -47,28 +50,70 @@ class WorkManagerService
             'q' => $search,
         ]);
 
-        return $this->createRequest()->get('works', $query);
+        try {
+            return $this->createRequest()->get('works', $query);
+        } catch (ConnectionException | RequestException $e) {
+            Log::error('Failed to connect to crawler service when listing works', [
+                'error' => $e->getMessage(),
+                'url' => config('crawler.base_url') . '/works',
+            ]);
+            return null;
+        }
     }
 
     /**
      * Get a specific work by ID
      *
      * @param string $jobId
-     * @return \Illuminate\Http\Client\Response
+     * @return \Illuminate\Http\Client\Response|null
      */
     public function getWork(string $jobId)
     {
-        return $this->createRequest()->get("works/{$jobId}");
+        try {
+            return $this->createRequest()->get("works/{$jobId}");
+        } catch (ConnectionException | RequestException $e) {
+            Log::error('Failed to connect to crawler service when getting work', [
+                'error' => $e->getMessage(),
+                'job_id' => $jobId,
+                'url' => config('crawler.base_url') . "/works/{$jobId}",
+            ]);
+            return null;
+        }
     }
 
     /**
      * Cancel a specific work by ID
      *
      * @param string $jobId
-     * @return \Illuminate\Http\Client\Response
+     * @return \Illuminate\Http\Client\Response|null
      */
     public function cancelWork(string $jobId)
     {
-        return $this->createRequest()->post("works/{$jobId}/cancel");
+        try {
+            return $this->createRequest()->post("works/{$jobId}/cancel");
+        } catch (ConnectionException | RequestException $e) {
+            Log::error('Failed to connect to crawler service when cancelling work', [
+                'error' => $e->getMessage(),
+                'job_id' => $jobId,
+                'url' => config('crawler.base_url') . "/works/{$jobId}/cancel",
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Check if the crawler service is available
+     *
+     * @return bool
+     */
+    public function isServiceAvailable(): bool
+    {
+        try {
+            $response = Http::baseUrl(config('crawler.base_url'))->timeout(5)->get('/health');
+
+            return $response->successful();
+        } catch (ConnectionException | RequestException $e) {
+            return false;
+        }
     }
 }

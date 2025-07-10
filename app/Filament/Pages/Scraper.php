@@ -13,6 +13,8 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Livewire\Attributes\Locked;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 
 class Scraper extends Page implements HasForms
 {
@@ -72,13 +74,27 @@ class Scraper extends Page implements HasForms
     {
         $data = $this->form->getState();
 
-        $service->runScraper($data);
+        try {
+            $service->runScraper($data);
 
-        Notification::make()
-            ->title('Scraper job started successfully')
-            ->success()
-            ->send();
+            Notification::make()
+                ->title('Scraper job started successfully')
+                ->success()
+                ->send();
 
-        $this->form->fill();
+            $this->form->fill();
+        } catch (ConnectionException | RequestException $e) {
+            Notification::make()
+                ->title('Service Unavailable')
+                ->body('Cannot connect to the crawler service. Please check if the service is running and try again.')
+                ->danger()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Error')
+                ->body('An unexpected error occurred while starting the scraper job.')
+                ->danger()
+                ->send();
+        }
     }
 }

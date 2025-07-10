@@ -25,9 +25,16 @@ class Work extends Model
 
     public function getRows()
     {
-        $response = app(WorkManagerService::class)->listWorks();
+        $workManagerService = app(WorkManagerService::class);
 
-        if (!$response->successful()) {
+        // Check if service is available first
+        if (!$workManagerService->isServiceAvailable()) {
+            return [];
+        }
+
+        $response = $workManagerService->listWorks();
+
+        if (!$response || !$response->successful()) {
             return [];
         }
 
@@ -47,13 +54,24 @@ class Work extends Model
 
     public function cancel()
     {
-        $response = app(WorkManagerService::class)->cancelWork($this->id);
+        $workManagerService = app(WorkManagerService::class);
+        $response = $workManagerService->cancelWork($this->id);
 
-        if ($response->successful()) {
+        if ($response && $response->successful()) {
             $this->status = 'cancelled';
             $this->save();
         }
 
         return $response;
+    }
+
+    /**
+     * Check if the crawler service is available
+     *
+     * @return bool
+     */
+    public static function isServiceAvailable(): bool
+    {
+        return app(WorkManagerService::class)->isServiceAvailable();
     }
 }
