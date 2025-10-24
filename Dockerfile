@@ -48,9 +48,9 @@ COPY resources ./resources
 RUN pnpm run build
 
 # Stage 3: Build PHP application with FrankenPHP + Octane
-FROM dunglas/frankenphp:latest-php8.3-alpine AS base
+FROM dunglas/frankenphp:latest-php8.3-alpine AS builder
 
-# Install system dependencies and PHP extensions
+# Install system dependencies and PHP extensions, then clean up
 RUN install-php-extensions \
     pdo_pgsql \
     pgsql \
@@ -61,7 +61,12 @@ RUN install-php-extensions \
     bcmath \
     gd \
     intl \
-    opcache
+    opcache \
+    # Clean up APK cache and unnecessary files
+    && rm -rf /var/cache/apk/* \
+    && rm -rf /tmp/* \
+    && rm -rf /usr/share/man/* \
+    && rm -rf /usr/share/doc/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -75,26 +80,70 @@ COPY . .
 # Copy built frontend assets from frontend-builder
 COPY --from=frontend-builder /app/public/build ./public/build
 
-# Install PHP dependencies and generate optimized autoloader, then clean up
+# Install PHP dependencies, clean up vendor, and optimize
 RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader \
     && composer clear-cache \
+    # Remove unnecessary files from vendor
+    && find vendor -type d -name "test" -o -name "tests" -o -name "Tests" -o -name "testing" | xargs rm -rf \
+    && find vendor -type d -name "doc" -o -name "docs" -o -name "example" -o -name "examples" | xargs rm -rf \
+    && find vendor -type d -name ".git" | xargs rm -rf \
+    && find vendor -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "composer.json" | xargs rm -f \
+    && find vendor -name "phpunit.xml*" -o -name "phpcs.xml*" -o -name ".travis.yml" -o -name ".gitignore" -o -name ".gitattributes" | xargs rm -f \
+    && find vendor -name "LICENSE*" -o -name "CHANGELOG*" -o -name "CONTRIBUTING*" -o -name "UPGRADE*" | xargs rm -f \
+    # Remove composer and cache
     && rm -rf /root/.composer \
     && rm -f /usr/bin/composer \
+    # Remove development files
     && rm -rf tests \
     && rm -rf .git .github \
-    && find . -name "*.md" ! -name "README.md" -delete
+    && find . -maxdepth 1 -name "*.md" ! -name "README.md" -delete
 
 # Copy Caddyfile for FrankenPHP
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Create entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Set permissions for Laravel
-RUN chown -R www-data:www-data /app \
+# Set permissions, clean storage, and finalize in single layer
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    # Clean storage directories but keep .gitkeep files
+    && find storage/logs -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
+    && find storage/framework/cache -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
+    && find storage/framework/sessions -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
+    && find storage/framework/views -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
+    && rm -rf storage/debugbar 2>/dev/null || true \
+    # Set proper permissions
+    && chown -R www-data:www-data /app \
     && chmod -R 755 /app/storage \
     && chmod -R 755 /app/bootstrap/cache
+
+# Stage 4: Final production image
+FROM dunglas/frankenphp:latest-php8.3-alpine
+
+# Install only runtime PHP extensions (no build tools)
+RUN install-php-extensions \
+    pdo_pgsql \
+    pgsql \
+    redis \
+    zip \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    intl \
+    opcache \
+    # Clean up immediately
+    && rm -rf /var/cache/apk/* \
+    && rm -rf /tmp/* \
+    && rm -rf /usr/share/man/* \
+    && rm -rf /usr/share/doc/*
+
+WORKDIR /app
+
+# Copy only necessary files from builder
+COPY --from=builder --chown=www-data:www-data /app /app
+COPY --from=builder /usr/local/bin/docker-entrypoint.sh /usr/local/bin/
+COPY --from=builder /etc/caddy/Caddyfile /etc/caddy/Caddyfile
 
 # Expose port 8000 (Octane default)
 EXPOSE 8000

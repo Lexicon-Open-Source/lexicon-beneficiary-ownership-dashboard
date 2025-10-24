@@ -69,8 +69,27 @@ Thumbs.db
 .phpunit.cache
 storage/debugbar
 storage/app/public
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
 auth.json
 
 # Dependency lock files (already in image)
 package-lock.json
 yarn.lock
+
+# Build and CI files
+.editorconfig
+.php-cs-fixer*
+.styleci.yml
+phpstan.neon
+psalm.xml
+rector.php
+
+# Additional documentation
+CHANGELOG*
+CONTRIBUTING*
+UPGRADE*
+CODE_OF_CONDUCT*
+SECURITY*
