@@ -1,160 +1,177 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
 
-# Stage 1: Install composer dependencies
-FROM composer:latest AS composer-dependencies
+#########################
+# Base Composer Image #
+#########################
+FROM composer:2.7 AS composer-base
+
+#########################
+# PHP Dependencies Stage #
+#########################
+FROM php:8.3-cli AS composer-prod
+
+# Install build dependencies and PHP extensions in one layer
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        git unzip libicu-dev libzip-dev libpq-dev \
+        && rm -rf /var/lib/apt/lists/*; \
+    \
+    docker-php-ext-install \
+        intl \
+        zip \
+        pdo_pgsql \
+        pgsql; \
+    \
+    docker-php-source delete
+
+# Bring in Composer binary from the official image
+COPY --from=composer-base /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# Copy composer files
+# Copy only composer files first for better cache utilization
 COPY composer.json composer.lock ./
 
-# Copy application structure needed for composer autoload
-COPY app ./app
-COPY bootstrap ./bootstrap
-COPY config ./config
-COPY routes ./routes
-COPY database ./database
+# Install dependencies with optimization
+RUN --mount=type=cache,target=/tmp/composer,sharing=locked \
+    composer install \
+        --no-dev \
+        --no-interaction \
+        --prefer-dist \
+        --optimize-autoloader \
+        --no-progress \
+        --no-scripts \
+        --apcu-autoloader
 
-# Install all dependencies (including dev) for the build process
-# Ignore platform requirements since we're just preparing vendor for copying
-RUN composer install --no-scripts --no-autoloader --prefer-dist --ignore-platform-reqs
+#########################
+# Frontend Build Stage #
+#########################
+FROM node:20-slim AS frontend-builder
 
-# Stage 2: Build frontend assets with pnpm
-FROM node:20-alpine AS frontend-builder
-
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Enable pnpm
+RUN corepack enable
 
 WORKDIR /app
 
-# Copy vendor directory from composer stage (needed for Filament preset)
-COPY --from=composer-dependencies /app/vendor ./vendor
+# Copy package files first
+COPY package.json pnpm-lock.yaml ./
 
-# Copy package files
-COPY package*.json pnpm-lock.yaml* ./
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
+    pnpm install --frozen-lockfile --prod=false
 
-# Install dependencies (use frozen-lockfile if lock exists, otherwise generate it)
-RUN if [ -f pnpm-lock.yaml ]; then \
-        pnpm install --frozen-lockfile; \
-    else \
-        pnpm install --no-frozen-lockfile; \
-    fi
-
-# Copy frontend source files
+# Copy necessary files for build
 COPY vite.config.js postcss.config.js tailwind.config.js ./
 COPY resources ./resources
+COPY --from=composer-prod /app/vendor ./vendor
 
-# Build assets
+# Build frontend assets
 RUN pnpm run build
 
-# Stage 3: Build PHP application with FrankenPHP + Octane
-FROM dunglas/frankenphp:latest-php8.3-alpine AS builder
+#########################
+# Final Runtime Image #
+#########################
+FROM dunglas/frankenphp:1.1-php8.3-bookworm
 
-# Install system dependencies and PHP extensions, then clean up
+# Install required PHP extensions
 RUN install-php-extensions \
-    pdo_pgsql \
-    pgsql \
-    redis \
-    zip \
-    exif \
-    pcntl \
-    bcmath \
-    gd \
-    intl \
-    opcache \
-    # Clean up APK cache and unnecessary files
-    && rm -rf /var/cache/apk/* \
-    && rm -rf /tmp/* \
-    && rm -rf /usr/share/man/* \
-    && rm -rf /usr/share/doc/*
+        pdo_pgsql \
+        pgsql \
+        redis \
+        zip \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        intl \
+        opcache
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
 WORKDIR /app
 
-# Copy application files
-COPY . .
+# Copy application files (optimized order)
+COPY --from=composer-prod /app/vendor ./vendor
+COPY --chown=www-data:www-data app ./app
+COPY --chown=www-data:www-data bootstrap ./bootstrap
+COPY --chown=www-data:www-data config ./config
+COPY --chown=www-data:www-data database ./database
+COPY --chown=www-data:www-data routes ./routes
+COPY --chown=www-data:www-data storage ./storage
+COPY --chown=www-data:www-data public ./public
+COPY --chown=www-data:www-data artisan ./
+COPY --chown=www-data:www-data composer.json composer.lock ./
 
-# Copy built frontend assets from frontend-builder
+# Copy built assets
 COPY --from=frontend-builder /app/public/build ./public/build
 
-# Install PHP dependencies, clean up vendor, and optimize
-RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader \
-    && composer clear-cache \
-    # Remove unnecessary files from vendor
-    && find vendor -type d -name "test" -o -name "tests" -o -name "Tests" -o -name "testing" | xargs rm -rf \
-    && find vendor -type d -name "doc" -o -name "docs" -o -name "example" -o -name "examples" | xargs rm -rf \
-    && find vendor -type d -name ".git" | xargs rm -rf \
-    && find vendor -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "composer.json" | xargs rm -f \
-    && find vendor -name "phpunit.xml*" -o -name "phpcs.xml*" -o -name ".travis.yml" -o -name ".gitignore" -o -name ".gitattributes" | xargs rm -f \
-    && find vendor -name "LICENSE*" -o -name "CHANGELOG*" -o -name "CONTRIBUTING*" -o -name "UPGRADE*" | xargs rm -f \
-    # Remove composer and cache
-    && rm -rf /root/.composer \
-    && rm -f /usr/bin/composer \
-    # Remove development files
-    && rm -rf tests \
-    && rm -rf .git .github \
-    && find . -maxdepth 1 -name "*.md" ! -name "README.md" -delete
+# Create necessary directories and set permissions in one layer
+RUN mkdir -p storage/framework/{cache,views,sessions,testing} \
+         storage/logs \
+         bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-# Copy Caddyfile for FrankenPHP
+# Production environment variables
+ENV APP_ENV=production \
+    APP_DEBUG=0 \
+    LOG_LEVEL=warning \
+    OPCACHE_ENABLE=1 \
+    OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    OPCACHE_MAX_ACCELERATED_FILES=20000 \
+    OPCACHE_MEMORY_CONSUMPTION=256 \
+    OPCACHE_JIT_BUFFER_SIZE=64
+
+# Optimized OPcache configuration for production
+RUN echo "opcache.enable_cli=1" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.revalidate_freq=0" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.validate_timestamps=0" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.save_comments=1" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.enable_file_override=0" >> /usr/local/etc/php/conf.d/opcache.ini
+
+# Clean up unnecessary files from vendor
+RUN find vendor -type d \( \
+        -name tests \
+        -name test \
+        -name .github \
+        -name examples \
+        -name docs \
+        -name doc \
+    \) -prune -exec rm -rf {} + 2>/dev/null || true; \
+    find vendor -type f \( \
+        -name "*.md" \
+        -name "*.rst" \
+        -name "*.txt" \
+        -name "CHANGELOG*" \
+        -name "README*" \
+        -name "CONTRIBUTING*" \
+        -name "LICENSE*" \
+        -name "Makefile" \
+        -name "*.yml" \
+        -name "*.yaml" \
+    \) -delete 2>/dev/null || true
+
+# Copy Caddyfile
 COPY Caddyfile /etc/caddy/Caddyfile
 
-# Create entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
+# Create entrypoint
+RUN echo '#!/bin/sh' > /usr/local/bin/docker-entrypoint.sh \
+    && echo 'set -e' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo '' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo 'if [ "$1" = "php" ]; then' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo '    exec php "$@"' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo 'fi' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo '' >> /usr/local/bin/docker-entrypoint.sh \
+    && echo 'exec "$@"' >> /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Set permissions, clean storage, and finalize in single layer
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-    # Clean storage directories but keep .gitkeep files
-    && find storage/logs -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
-    && find storage/framework/cache -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
-    && find storage/framework/sessions -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
-    && find storage/framework/views -type f ! -name ".gitkeep" -delete 2>/dev/null || true \
-    && rm -rf storage/debugbar 2>/dev/null || true \
-    # Set proper permissions
-    && chown -R www-data:www-data /app \
-    && chmod -R 755 /app/storage \
-    && chmod -R 755 /app/bootstrap/cache
-
-# Stage 4: Final production image
-FROM dunglas/frankenphp:latest-php8.3-alpine
-
-# Install runtime dependencies for PHP extensions (no build tools)
-RUN apk add --no-cache \
-    postgresql-libs \
-    libpq \
-    icu-libs \
-    libzip \
-    libpng \
-    libjpeg-turbo \
-    freetype \
-    libwebp \
-    && rm -rf /var/cache/apk/* \
-    && rm -rf /tmp/* \
-    && rm -rf /usr/share/man/* \
-    && rm -rf /usr/share/doc/*
-
-# Copy PHP extensions from builder (avoid recompiling)
-COPY --from=builder /usr/local/etc/php /usr/local/etc/php
-COPY --from=builder /usr/local/lib/php /usr/local/lib/php
-
-WORKDIR /app
-
-# Copy only necessary files from builder
-COPY --from=builder --chown=www-data:www-data /app /app
-COPY --from=builder /usr/local/bin/docker-entrypoint.sh /usr/local/bin/
-COPY --from=builder /etc/caddy/Caddyfile /etc/caddy/Caddyfile
-
-# Expose port 8000 (Octane default)
 EXPOSE 8000
 
-# Health check (updated for Octane port)
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8000/api/health || exit 1
 
-# Use entrypoint script
+USER www-data
+
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-
-# Start Laravel Octane with FrankenPHP
-CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000", "--admin-port=2019", "--max-requests=500"]
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000", "--admin-port=2020", "--max-requests=1000"]
