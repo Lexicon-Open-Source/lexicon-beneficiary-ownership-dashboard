@@ -120,23 +120,24 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
 # Stage 4: Final production image
 FROM dunglas/frankenphp:latest-php8.3-alpine
 
-# Install only runtime PHP extensions (no build tools)
-RUN install-php-extensions \
-    pdo_pgsql \
-    pgsql \
-    redis \
-    zip \
-    exif \
-    pcntl \
-    bcmath \
-    gd \
-    intl \
-    opcache \
-    # Clean up immediately
+# Install runtime dependencies for PHP extensions (no build tools)
+RUN apk add --no-cache \
+    postgresql-libs \
+    libpq \
+    icu-libs \
+    libzip \
+    libpng \
+    libjpeg-turbo \
+    freetype \
+    libwebp \
     && rm -rf /var/cache/apk/* \
     && rm -rf /tmp/* \
     && rm -rf /usr/share/man/* \
     && rm -rf /usr/share/doc/*
+
+# Copy PHP extensions from builder (avoid recompiling)
+COPY --from=builder /usr/local/etc/php /usr/local/etc/php
+COPY --from=builder /usr/local/lib/php /usr/local/lib/php
 
 WORKDIR /app
 
