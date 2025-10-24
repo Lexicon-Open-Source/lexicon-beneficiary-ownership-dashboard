@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lexicon-bo-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL:-http://localhost}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-lexicon_bo_dashboard}
+      - DB_USERNAME=${DB_USERNAME:-lexicon}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-null}
+      - SESSION_DRIVER=redis
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=database
+      - CRAWLER_BASE_URL=${CRAWLER_BASE_URL}
+      - CRAWLER_API_KEY=${CRAWLER_API_KEY}
+      - CRAWLER_SALT=${CRAWLER_SALT}
+      - CRAWLER_USER=${CRAWLER_USER}
+      - CRAWLER_IDENTITY=${CRAWLER_IDENTITY}
+      - CRAWLER_TIMEOUT=${CRAWLER_TIMEOUT:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lexicon-network
+    volumes:
+      - ./storage:/app/storage
+    labels:
+      # Traefik labels for DOKPLOY deployment
+      - "traefik.enable=true"
+      - "traefik.http.routers.lexicon-bo.rule=Host(`${APP_DOMAIN:-lexicon-bo.local}`)"
+      - "traefik.http.routers.lexicon-bo.entrypoints=websecure"
+      - "traefik.http.routers.lexicon-bo.tls=true"
+      - "traefik.http.routers.lexicon-bo.tls.certresolver=letsencrypt"
+      - "traefik.http.services.lexicon-bo.loadbalancer.server.port=80"
+      # Optional: HTTPS redirect
+      - "traefik.http.routers.lexicon-bo-http.rule=Host(`${APP_DOMAIN:-lexicon-bo.local}`)"
+      - "traefik.http.routers.lexicon-bo-http.entrypoints=web"
+      - "traefik.http.routers.lexicon-bo-http.middlewares=redirect-to-https@docker"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: lexicon-bo-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_DATABASE:-lexicon_bo_dashboard}
+      - POSTGRES_USER=${DB_USERNAME:-lexicon}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secret}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - lexicon-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-lexicon} -d ${DB_DATABASE:-lexicon_bo_dashboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: lexicon-bo-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-null}
+    volumes:
+      - redis-data:/data
+    networks:
+      - lexicon-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+networks:
+  lexicon-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local

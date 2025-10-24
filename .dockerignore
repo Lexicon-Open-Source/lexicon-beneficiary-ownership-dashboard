@@ -1,0 +1,66 @@
+# Git
+.git
+.github
+.gitignore
+.gitattributes
+
+# IDEs
+.idea
+.vscode
+*.swp
+*.swo
+*.swn
+.phpstorm.meta.php
+_ide_helper.php
+
+# Testing
+tests
+phpunit.xml
+.phpunit.result.cache
+
+# Node modules and build artifacts (will be built in container)
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Vendor directory (will be installed in container)
+vendor
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Laravel specific
+storage/logs/*
+!storage/logs/.gitkeep
+storage/framework/cache/*
+!storage/framework/cache/.gitkeep
+storage/framework/sessions/*
+!storage/framework/sessions/.gitkeep
+storage/framework/views/*
+!storage/framework/views/.gitkeep
+bootstrap/cache/*
+!bootstrap/cache/.gitkeep
+
+# Build artifacts
+public/hot
+public/build
+public/storage
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Docker
+docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
