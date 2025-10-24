@@ -25,10 +25,10 @@ COPY resources ./resources
 # Build assets
 RUN pnpm run build
 
-# Stage 2: Build PHP application with FrankenPHP
+# Stage 2: Build PHP application with FrankenPHP + Octane
 FROM dunglas/frankenphp:latest-php8.2 AS base
 
-# Install system dependencies
+# Install system dependencies and PHP extensions
 RUN install-php-extensions \
     pdo_pgsql \
     pgsql \
@@ -37,7 +37,8 @@ RUN install-php-extensions \
     exif \
     pcntl \
     bcmath \
-    gd
+    gd \
+    opcache
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -60,6 +61,9 @@ COPY --from=frontend-builder /app/public/build ./public/build
 # Generate optimized autoloader
 RUN composer dump-autoload --optimize --no-dev
 
+# Copy Caddyfile for FrankenPHP
+COPY Caddyfile /etc/caddy/Caddyfile
+
 # Create entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -69,28 +73,15 @@ RUN chown -R www-data:www-data /app \
     && chmod -R 755 /app/storage \
     && chmod -R 755 /app/bootstrap/cache
 
-# Create Caddyfile for FrankenPHP
-RUN echo '{\n\
-    frankenphp\n\
-    order php_server before file_server\n\
-}\n\
-\n\
-:80 {\n\
-    root * /app/public\n\
-    php_server\n\
-    encode gzip\n\
-    file_server\n\
-}\n' > /etc/caddy/Caddyfile
+# Expose port 8000 (Octane default)
+EXPOSE 8000
 
-# Expose port 80
-EXPOSE 80
-
-# Health check
+# Health check (updated for Octane port)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost/api/health || exit 1
+    CMD curl -f http://localhost:8000/api/health || exit 1
 
 # Use entrypoint script
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-# Start FrankenPHP
-CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
+# Start Laravel Octane with FrankenPHP
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000", "--admin-port=2019", "--max-requests=500"]

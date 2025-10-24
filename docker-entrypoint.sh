@@ -48,5 +48,5 @@ fi
 echo "Application initialization complete!"
 
 # Change to www-data user and execute the CMD
-echo "Starting FrankenPHP..."
+echo "Starting Laravel Octane with FrankenPHP..."
 exec gosu www-data "$@"

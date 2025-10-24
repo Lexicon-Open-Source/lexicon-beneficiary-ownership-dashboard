@@ -8,7 +8,7 @@ services:
     container_name: lexicon-bo-app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8000}:80"
+      - "${APP_PORT:-8000}:8000"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=${APP_DEBUG:-false}
@@ -26,6 +26,11 @@ services:
       - SESSION_DRIVER=redis
       - CACHE_STORE=redis
       - QUEUE_CONNECTION=database
+      - OCTANE_SERVER=frankenphp
+      - OCTANE_HOST=0.0.0.0
+      - OCTANE_PORT=8000
+      - OCTANE_WORKERS=auto
+      - OCTANE_MAX_REQUESTS=500
       - CRAWLER_BASE_URL=${CRAWLER_BASE_URL}
       - CRAWLER_API_KEY=${CRAWLER_API_KEY}
       - CRAWLER_SALT=${CRAWLER_SALT}
@@ -48,7 +53,7 @@ services:
       - "traefik.http.routers.lexicon-bo.entrypoints=websecure"
       - "traefik.http.routers.lexicon-bo.tls=true"
       - "traefik.http.routers.lexicon-bo.tls.certresolver=letsencrypt"
-      - "traefik.http.services.lexicon-bo.loadbalancer.server.port=80"
+      - "traefik.http.services.lexicon-bo.loadbalancer.server.port=8000"
       # Optional: HTTPS redirect
       - "traefik.http.routers.lexicon-bo-http.rule=Host(`${APP_DOMAIN:-lexicon-bo.local}`)"
       - "traefik.http.routers.lexicon-bo-http.entrypoints=web"
