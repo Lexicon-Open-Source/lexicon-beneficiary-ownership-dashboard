@@ -64,3 +64,13 @@ Dockerfile
 .DS_Store
 Thumbs.db
 *.log
+
+# Additional Laravel cache and temporary files
+.phpunit.cache
+storage/debugbar
+storage/app/public
+auth.json
+
+# Dependency lock files (already in image)
+package-lock.json
+yarn.lock

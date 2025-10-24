@@ -8,8 +8,16 @@ WORKDIR /app
 # Copy composer files
 COPY composer.json composer.lock ./
 
+# Copy application structure needed for composer autoload
+COPY app ./app
+COPY bootstrap ./bootstrap
+COPY config ./config
+COPY routes ./routes
+COPY database ./database
+
 # Install all dependencies (including dev) for the build process
-RUN composer install --no-scripts --no-autoloader --prefer-dist
+# Ignore platform requirements since we're just preparing vendor for copying
+RUN composer install --no-scripts --no-autoloader --prefer-dist --ignore-platform-reqs
 
 # Stage 2: Build frontend assets with pnpm
 FROM node:20-alpine AS frontend-builder
@@ -40,7 +48,7 @@ COPY resources ./resources
 RUN pnpm run build
 
 # Stage 3: Build PHP application with FrankenPHP + Octane
-FROM dunglas/frankenphp:latest-php8.2 AS base
+FROM dunglas/frankenphp:latest-php8.3-alpine AS base
 
 # Install system dependencies and PHP extensions
 RUN install-php-extensions \
@@ -52,6 +60,7 @@ RUN install-php-extensions \
     pcntl \
     bcmath \
     gd \
+    intl \
     opcache
 
 # Install Composer
@@ -60,20 +69,20 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /app
 
-# Copy composer files
-COPY composer.json composer.lock ./
-
-# Install PHP dependencies (skip dev dependencies for production)
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --optimize-autoloader
-
 # Copy application files
 COPY . .
 
 # Copy built frontend assets from frontend-builder
 COPY --from=frontend-builder /app/public/build ./public/build
 
-# Generate optimized autoloader
-RUN composer dump-autoload --optimize --no-dev
+# Install PHP dependencies and generate optimized autoloader, then clean up
+RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader \
+    && composer clear-cache \
+    && rm -rf /root/.composer \
+    && rm -f /usr/bin/composer \
+    && rm -rf tests \
+    && rm -rf .git .github \
+    && find . -name "*.md" ! -name "README.md" -delete
 
 # Copy Caddyfile for FrankenPHP
 COPY Caddyfile /etc/caddy/Caddyfile
