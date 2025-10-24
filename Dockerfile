@@ -1,12 +1,26 @@
 # syntax=docker/dockerfile:1
 
-# Stage 1: Build frontend assets with pnpm
+# Stage 1: Install composer dependencies
+FROM composer:latest AS composer-dependencies
+
+WORKDIR /app
+
+# Copy composer files
+COPY composer.json composer.lock ./
+
+# Install all dependencies (including dev) for the build process
+RUN composer install --no-scripts --no-autoloader --prefer-dist
+
+# Stage 2: Build frontend assets with pnpm
 FROM node:20-alpine AS frontend-builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
+
+# Copy vendor directory from composer stage (needed for Filament preset)
+COPY --from=composer-dependencies /app/vendor ./vendor
 
 # Copy package files
 COPY package*.json pnpm-lock.yaml* ./
@@ -25,7 +39,7 @@ COPY resources ./resources
 # Build assets
 RUN pnpm run build
 
-# Stage 2: Build PHP application with FrankenPHP + Octane
+# Stage 3: Build PHP application with FrankenPHP + Octane
 FROM dunglas/frankenphp:latest-php8.2 AS base
 
 # Install system dependencies and PHP extensions
