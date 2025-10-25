@@ -9,6 +9,22 @@
     # Enable compression
     encode zstd gzip
 
+    @adminStatic {
+        path /admin/*
+        file {
+            try_files {path} {path}/
+        }
+    }
+    handle @adminStatic {
+        file_server
+    }
+
+    @adminRoutes path /admin*
+    handle @adminRoutes {
+        rewrite * /admin/index.php
+        php_server
+    }
+
     # PHP server
     php_server
 }
